@@ -7,7 +7,10 @@
     "dev": "wrangler dev",
     "start": "wrangler dev",
     "test": "vitest",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "probe": "node scripts/probe.mjs",
+    "probe:matrix": "node scripts/run-matrix.mjs",
+    "probe:sweep": "node scripts/sweep.mjs"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.22.0",

@@ -1,29 +1,32 @@
-import {
-	env,
-	createExecutionContext,
-	waitOnExecutionContext,
-	SELF,
-} from "cloudflare:test";
-import { describe, it, expect } from "vitest";
-import worker from "../src/index";
+import { SELF } from "cloudflare:test";
+import { describe, expect, it } from "vitest";
 
-// For now, you'll need to do something like this to get a correctly-typed
-// `Request` to pass to `worker.fetch()`.
-const IncomingRequest = Request<unknown, IncomingRequestCfProperties>;
-
-describe("Hello World worker", () => {
-	it("responds with Hello World! (unit style)", async () => {
-		const request = new IncomingRequest("http://example.com");
-		// Create an empty context to pass to `worker.fetch()`.
-		const ctx = createExecutionContext();
-		const response = await worker.fetch(request, env, ctx);
-		// Wait for all `Promise`s passed to `ctx.waitUntil()` to settle before running test assertions
-		await waitOnExecutionContext(ctx);
-		expect(await response.text()).toMatchInlineSnapshot(`"Hello World!"`);
+describe("compressed HTML streaming reproduction", () => {
+	it("documents the reproduction endpoint", async () => {
+		const response = await SELF.fetch("https://example.com/help");
+		expect(response.status).toBe(200);
+		expect(await response.text()).toContain("delay=10000");
 	});
 
-	it("responds with Hello World! (integration style)", async () => {
-		const response = await SELF.fetch("https://example.com");
-		expect(await response.text()).toMatchInlineSnapshot(`"Hello World!"`);
+	it("streams the requested number of bytes", async () => {
+		const response = await SELF.fetch("https://example.com/stream?initial=128&total=2048&delay=0");
+		expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
+		expect(response.headers.get("x-repro-entropy")).toBe("high");
+		expect(response.headers.get("x-repro-initial-bytes")).toBe("128");
+		expect((await response.arrayBuffer()).byteLength).toBe(2048);
+	});
+
+	it("can opt out of transformations", async () => {
+		const response = await SELF.fetch("https://example.com/stream?no_transform=1&delay=0");
+		expect(response.headers.get("cache-control")).toContain("no-transform");
+		await response.arrayBuffer();
+	});
+
+	it("rejects invalid parameters", async () => {
+		const response = await SELF.fetch("https://example.com/stream?initial=0");
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({
+			error: "initial must be an integer between 1 and 1048576",
+		});
 	});
 });
